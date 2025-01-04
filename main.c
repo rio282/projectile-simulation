@@ -16,13 +16,9 @@
 // world
 #define BALL_RADIUS 8
 
-struct Position {
-    int x;
-    int y;
-};
 
 struct m_State {
-    struct Position m_pos;
+    struct SDL_Point m_pos;
     bool m_down;
 };
 
@@ -30,7 +26,7 @@ struct m_State {
 float hypotenuse(int x1, int y1, int x2, int y2) {
     int dx = x2 - x1;
     int dy = y2 - y1;
-    return sqrtf(dx * dx + dy * dy);
+    return (float) sqrt(dx * dx + dy * dy);
 }
 
 float normalizeScalar(float dst, float max_dist) {
@@ -54,17 +50,51 @@ void SetRenderColor(SDL_Renderer *renderer, Uint32 color) {
     SDL_SetRenderDrawColor(renderer, r, g, b, a);
 }
 
-void FillCircle(SDL_Renderer *rend, struct Position p, Uint32 color) {
-    SetRenderColor(rend, color);
-
-    int r_sq = BALL_RADIUS * BALL_RADIUS;
-    for (int x = p.x - BALL_RADIUS; x <= p.x + BALL_RADIUS; ++x) {
-        for (int y = p.y - BALL_RADIUS; y <= p.y + BALL_RADIUS; ++y) {
+void FillCircle(SDL_Renderer *rend, SDL_Point p, int r) {
+    int r_sq = r * r;
+    for (int x = p.x - r; x <= p.x + r; ++x) {
+        for (int y = p.y - r; y <= p.y + r; ++y) {
             int dst_sq = (x - p.x) * (x - p.x) + (y - p.y) * (y - p.y);
             if (dst_sq < r_sq) {
-                SDL_Rect pxl = (SDL_Rect) {x, y, 1, 1};
-                SDL_RenderFillRect(rend, &pxl);
+                SDL_RenderDrawPoint(rend, x, y);
             }
+        }
+    }
+}
+
+void DrawDottedCircleLine(SDL_Renderer *renderer, int x1, int y1, int x2, int y2, int step, int r) {
+    int dx = abs(x2 - x1);
+    int dy = abs(y2 - y1);
+    int sx = (x1 < x2) ? 1 : -1;
+    int sy = (y1 < y2) ? 1 : -1;
+    int err = dx - dy;
+
+    int s_count = 0;
+
+    while (true) {
+        // only draw if the s_count is a multiple of step
+        if (s_count % step == 0) {
+            FillCircle(
+                    renderer,
+                    (SDL_Point) {.x = x1, .y = y1},
+                    r
+            );
+        }
+
+        s_count++;
+
+        if (x1 == x2 && y1 == y2) break;
+
+        int e2 = err * 2;
+
+        // update x and/or y based on the error value
+        if (e2 > -dy) {
+            err -= dy;
+            x1 += sx;
+        }
+        if (e2 < dx) {
+            err += dx;
+            y1 += sy;
         }
     }
 }
@@ -94,7 +124,7 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
     SDL_Surface *surface = SDL_GetWindowSurface(window);
 
     struct m_State mouse_state = {};
-    struct Position anchor_point = {};
+    SDL_Point anchor_point = {};
 
     SDL_Log("Init complete.\n");
     bool running = true;
@@ -136,23 +166,29 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
         SDL_RenderClear(renderer);
 
         if (mouse_state.m_down) {
-            float dst = hypotenuse(mouse_state.m_pos.x, mouse_state.m_pos.y, anchor_point.x, anchor_point.y);
+            float dst = hypotenuse(
+                    mouse_state.m_pos.x, mouse_state.m_pos.y,
+                    anchor_point.x, anchor_point.y
+            );
             float normalized_dst = normalizeScalar(dst, WIN_HEIGHT);
             float smooth_dst = normalized_dst * normalized_dst;
+            Uint32 dst_indication_color = ndstToGradientColor(smooth_dst);
 
-            Uint32 color = ndstToGradientColor(smooth_dst);
-
-            SetRenderColor(renderer, color);
-            SDL_RenderDrawLine(
+            SetRenderColor(renderer, dst_indication_color);
+            DrawDottedCircleLine(
                     renderer,
                     mouse_state.m_pos.x,
                     mouse_state.m_pos.y,
                     anchor_point.x,
-                    anchor_point.y
+                    anchor_point.y,
+                    BALL_RADIUS * 2,
+                    BALL_RADIUS / 2
             );
 
-            FillCircle(renderer, mouse_state.m_pos, 0xFFFFFFFF);
-            FillCircle(renderer, anchor_point, color);
+            FillCircle(renderer, anchor_point, BALL_RADIUS);
+
+            SetRenderColor(renderer, 0xFFFFFFFF);
+            FillCircle(renderer, mouse_state.m_pos, BALL_RADIUS);
         }
 
         SDL_RenderPresent(renderer);
