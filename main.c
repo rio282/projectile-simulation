@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
-
+#include <math.h>
 
 #define SDL_MAIN_HANDLED // needs to be set before SDL.h is imported
 
@@ -11,11 +11,68 @@
 #define WIN_WIDTH 800
 #define WIN_HEIGHT 600
 #define TARGET_FPS 60
+#define FRAME_DELAY_MS (1000 / TARGET_FPS)
+
+// world
+#define BALL_RADIUS 8
+
+struct Position {
+    int x;
+    int y;
+};
+
+struct m_State {
+    struct Position m_pos;
+    bool m_down;
+};
+
+
+float hypotenuse(int x1, int y1, int x2, int y2) {
+    int dx = x2 - x1;
+    int dy = y2 - y1;
+    return sqrtf(dx * dx + dy * dy);
+}
+
+float normalizeScalar(float dst, float max_dist) {
+    return fminf(dst / max_dist, 1.0f);
+}
+
+Uint32 ndstToGradientColor(float normalized_dst) {
+    Uint8 r = (Uint8) (255 * normalized_dst);
+    Uint8 g = (Uint8) (255 * (1.0f - normalized_dst));
+    Uint8 b = 0;
+    Uint8 a = 255;
+    return (r << 24) | (g << 16) | (b << 8) | a;
+}
+
+void SetRenderColor(SDL_Renderer *renderer, Uint32 color) {
+    Uint8 r = (color >> 24) & 0xFF;
+    Uint8 g = (color >> 16) & 0xFF;
+    Uint8 b = (color >> 8) & 0xFF;
+    Uint8 a = (color) & 0xFF;
+
+    SDL_SetRenderDrawColor(renderer, r, g, b, a);
+}
+
+void FillCircle(SDL_Renderer *rend, struct Position p, Uint32 color) {
+    SetRenderColor(rend, color);
+
+    int r_sq = BALL_RADIUS * BALL_RADIUS;
+    for (int x = p.x - BALL_RADIUS; x <= p.x + BALL_RADIUS; ++x) {
+        for (int y = p.y - BALL_RADIUS; y <= p.y + BALL_RADIUS; ++y) {
+            int dst_sq = (x - p.x) * (x - p.x) + (y - p.y) * (y - p.y);
+            if (dst_sq < r_sq) {
+                SDL_Rect pxl = (SDL_Rect) {x, y, 1, 1};
+                SDL_RenderFillRect(rend, &pxl);
+            }
+        }
+    }
+}
 
 int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[]) {
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         SDL_Log("SDL_Init Error: %s\n", SDL_GetError());
-        return 1;
+        return EXIT_FAILURE;
     }
 
     SDL_Window *window = SDL_CreateWindow(
@@ -30,19 +87,17 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
     if (!window) {
         SDL_Log("Failed to create window: %s\n", SDL_GetError());
         SDL_Quit();
-        return 1;
+        return EXIT_FAILURE;
     }
 
     SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     SDL_Surface *surface = SDL_GetWindowSurface(window);
 
-    // before enter loop
-    const int frame_delay_ms = 1000 / TARGET_FPS;
-    bool running = true;
+    struct m_State mouse_state = {};
+    struct Position anchor_point = {};
 
     SDL_Log("Init complete.\n");
-
-    // update loop
+    bool running = true;
     while (running) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
@@ -50,12 +105,26 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
                 case SDL_QUIT:
                     running = false;
                     break;
+
+                case SDL_MOUSEBUTTONDOWN:
+                    mouse_state.m_down = true;
+                    anchor_point.x = mouse_state.m_pos.x;
+                    anchor_point.y = mouse_state.m_pos.y;
+                    break;
+
+                case SDL_MOUSEBUTTONUP:
+                    mouse_state.m_down = false;
+                    break;
+
+                case SDL_MOUSEMOTION:
+                    mouse_state.m_pos.x = event.motion.x;
+                    mouse_state.m_pos.y = event.motion.y;
+                    break;
+
                 case SDL_KEYUP:
                     switch (event.key.keysym.scancode) {
                         case SDL_SCANCODE_Q:
                             running = false;
-                            break;
-                        case SDL_SCANCODE_SPACE:
                             break;
                         default:
                             break;
@@ -63,14 +132,33 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
             }
         }
 
-        SDL_SetRenderDrawColor(renderer, 128, 127, 128, 255);
+        SDL_SetRenderDrawColor(renderer, 64, 63, 64, 255);
         SDL_RenderClear(renderer);
 
+        if (mouse_state.m_down) {
+            float dst = hypotenuse(mouse_state.m_pos.x, mouse_state.m_pos.y, anchor_point.x, anchor_point.y);
+            float normalized_dst = normalizeScalar(dst, WIN_HEIGHT);
+            float smooth_dst = normalized_dst * normalized_dst;
+
+            Uint32 color = ndstToGradientColor(smooth_dst);
+
+            SetRenderColor(renderer, color);
+            SDL_RenderDrawLine(
+                    renderer,
+                    mouse_state.m_pos.x,
+                    mouse_state.m_pos.y,
+                    anchor_point.x,
+                    anchor_point.y
+            );
+
+            FillCircle(renderer, mouse_state.m_pos, 0xFFFFFFFF);
+            FillCircle(renderer, anchor_point, color);
+        }
+
         SDL_RenderPresent(renderer);
-        SDL_Delay(frame_delay_ms);
+        SDL_Delay(FRAME_DELAY_MS);
     }
 
-    // cleanup
     SDL_FreeSurface(surface);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
