@@ -15,6 +15,7 @@
 #define FRAME_TIME_S (1.0f / TARGET_FPS)
 
 // world
+#define MAX_BALLS 10
 #define BALL_RADIUS 12
 #define BALL_SPEED 10.0f
 #define BALL_IDLE_LIFETIME_MS 3000
@@ -33,8 +34,10 @@ typedef struct m_State {
 typedef struct Ball {
     SDL_FPoint pos;
     SDL_FPoint vel;
+
+    bool visible;
     bool idle;
-    int remaining_lifetime;
+    unsigned short remaining_lifetime;
 } Ball;
 
 float clamp(const float current, const float lower, const float upper) {
@@ -117,6 +120,80 @@ void DrawDottedCircleLine(SDL_Renderer *renderer, int x1, int y1, int x2, int y2
     }
 }
 
+void updateBalls(Ball (*balls)[MAX_BALLS]) {
+    for (size_t i = 0; i < MAX_BALLS; ++i) {
+        Ball ball = (*balls)[i];
+        if (!ball.visible) continue;
+
+        // check if the ball is idle, if so: reduce its lifetime
+        if (ball.idle) {
+            ball.remaining_lifetime -= FRAME_DELAY_MS;
+            if (ball.remaining_lifetime <= FRAME_DELAY_MS) {
+                // reset
+                ball.visible = false;
+                ball.idle = false;
+                ball.remaining_lifetime = BALL_IDLE_LIFETIME_MS;
+                continue;
+            }
+        } else {
+            ball.vel.y += GRAVITY * FRAME_TIME_S; // account for timeskip
+
+            ball.pos.x += ball.vel.x;
+            ball.pos.y += ball.vel.y;
+
+            // boundary checks
+            if (ball.pos.x < BALL_RADIUS || ball.pos.x > WIN_WIDTH - BALL_RADIUS) {
+                ball.vel.x = -ball.vel.x * BOUNCE;
+                ball.pos.x = clamp(ball.pos.x, BALL_RADIUS, WIN_WIDTH - BALL_RADIUS);
+            }
+            if (ball.pos.y < BALL_RADIUS || ball.pos.y > WIN_HEIGHT - BALL_RADIUS) {
+                ball.vel.y = -ball.vel.y * BOUNCE;
+                ball.pos.y = clamp(ball.pos.y, BALL_RADIUS, WIN_HEIGHT - BALL_RADIUS);
+
+                // if ball is almost at rest vertically
+                if (fabsf(ball.vel.y) < 1.0f) {
+                    ball.vel.x *= FLOOR_FRICTION;
+
+                    if (fabsf(ball.vel.x) < 0.0125f) {
+                        // stop ball completely if horizontal velocity is very small
+                        ball.vel.x = 0;
+                        ball.idle = true;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void shoot(Ball *ball, m_State *mouse_state, SDL_Point *anchor_point) {
+    ball->pos = (SDL_FPoint) {
+            .x = (float) anchor_point->x,
+            .y = (float) anchor_point->y
+    };
+
+    float magnitude = hypotenuse(
+            mouse_state->m_pos.x,
+            mouse_state->m_pos.y,
+            anchor_point->x,
+            anchor_point->y
+    );
+
+    if (magnitude > 0) {
+        ball->vel.x = -((float) (mouse_state->m_pos.x - anchor_point->x) / magnitude) * BALL_SPEED;
+        ball->vel.y = -((float) (mouse_state->m_pos.y - anchor_point->y) / magnitude) * BALL_SPEED;
+
+        float powerScale = 1.0f + powf(
+                fmaxf(magnitude - DISTANCE_SCALE_THRESHOLD, 0) / 100.0f,
+                DISTANCE_SCALE_EXPONENT
+        );
+        ball->vel.x *= powerScale;
+        ball->vel.y *= powerScale;
+
+        ball->idle = false;
+        ball->visible = true;
+    }
+}
+
 int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[]) {
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         SDL_Log("SDL_Init Error: %s\n", SDL_GetError());
@@ -145,8 +222,15 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
 
     m_State mouse_state = {};
     SDL_Point anchor_point = {};
-    Ball ball = {.remaining_lifetime = BALL_IDLE_LIFETIME_MS};
-    bool shooting = false;
+
+    Ball balls[MAX_BALLS];
+    for (size_t i = 0; i < MAX_BALLS; ++i) {
+        balls[i] = (Ball) {
+                .visible = false,
+                .idle = false,
+                .remaining_lifetime = BALL_IDLE_LIFETIME_MS
+        };
+    }
 
     SDL_Log("Init complete.\n");
     bool running = true;
@@ -163,40 +247,12 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
                     mouse_state.m_down = true;
                     anchor_point.x = mouse_state.m_pos.x;
                     anchor_point.y = mouse_state.m_pos.y;
-                    shooting = false;
                     break;
 
                 case SDL_MOUSEBUTTONUP:
                     if (paused) break;
-
                     mouse_state.m_down = false;
-                    ball.pos = (SDL_FPoint) {
-                            .x = (float) anchor_point.x,
-                            .y = (float) anchor_point.y
-                    };
-
-                    float magnitude = hypotenuse(
-                            mouse_state.m_pos.x,
-                            mouse_state.m_pos.y,
-                            anchor_point.x,
-                            anchor_point.y
-                    );
-
-                    if (magnitude > 0) {
-                        float dx = (float) (mouse_state.m_pos.x - anchor_point.x);
-                        float dy = (float) (mouse_state.m_pos.y - anchor_point.y);
-                        ball.vel.x = -(dx / magnitude) * BALL_SPEED;
-                        ball.vel.y = -(dy / magnitude) * BALL_SPEED;
-
-                        float scale = 1.0f + powf(
-                                fmaxf(magnitude - DISTANCE_SCALE_THRESHOLD, 0) / 100.0f,
-                                DISTANCE_SCALE_EXPONENT
-                        );
-                        ball.vel.x *= scale;
-                        ball.vel.y *= scale;
-                    }
-
-                    shooting = true;
+                    shoot(&balls[0], &mouse_state, &anchor_point);
                     break;
 
                 case SDL_MOUSEMOTION:
@@ -220,9 +276,14 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
         }
 
         if (!paused) {
+            // --- UPDATE
+            updateBalls(&balls);
+
+            // --- DRAW
             SDL_SetRenderDrawColor(renderer, 64, 63, 64, 255);
             SDL_RenderClear(renderer);
 
+            // user wants to fire a new ball
             if (mouse_state.m_down) {
                 float dst = hypotenuse(
                         mouse_state.m_pos.x, mouse_state.m_pos.y,
@@ -249,53 +310,22 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
                 FillCircle(renderer, mouse_state.m_pos, BALL_RADIUS * 0.75);
             }
 
-            if (shooting) {
-                ball.vel.y += GRAVITY * FRAME_TIME_S;
-
-                ball.pos.x += ball.vel.x;
-                ball.pos.y += ball.vel.y;
-
-                // boundary checks
-                if (ball.pos.x < BALL_RADIUS || ball.pos.x > WIN_WIDTH - BALL_RADIUS) {
-                    ball.vel.x = -ball.vel.x * BOUNCE;
-                    ball.pos.x = clamp(ball.pos.x, BALL_RADIUS, WIN_WIDTH - BALL_RADIUS);
-                }
-                if (ball.pos.y < BALL_RADIUS || ball.pos.y > WIN_HEIGHT - BALL_RADIUS) {
-                    ball.vel.y = -ball.vel.y * BOUNCE;
-                    ball.pos.y = clamp(ball.pos.y, BALL_RADIUS, WIN_HEIGHT - BALL_RADIUS);
-
-                    // if ball is almost at rest vertically
-                    if (fabsf(ball.vel.y) < 1.0f) {
-                        ball.vel.x *= FLOOR_FRICTION;
-
-                        if (fabsf(ball.vel.x) < 0.0125f) {
-                            // stop ball completely if horizontal velocity is very small
-                            ball.vel.x = 0;
-                            ball.idle = true;
-                        }
-                    }
-                }
-
-                SetRenderColor(renderer, 0xFFFFFFFF);
-                FillCircle(
-                        renderer,
-                        (SDL_Point) {.x = (int) ball.pos.x, .y = (int) ball.pos.y},
-                        BALL_RADIUS
-                );
-            }
-
-            if (ball.idle) {
-                ball.remaining_lifetime -= FRAME_DELAY_MS;
-                if (ball.remaining_lifetime <= 0) {
-                    shooting = false;
-                    ball.idle = false;
-                    ball.remaining_lifetime = BALL_IDLE_LIFETIME_MS;
+            // draw balls
+            SetRenderColor(renderer, 0xFFFFFFFF);
+            for (size_t i = 0; i < MAX_BALLS; ++i) {
+                Ball ball = balls[i];
+                if (ball.visible) {
+                    FillCircle(
+                            renderer,
+                            (SDL_Point) {.x = (int) ball.pos.x, .y = (int) ball.pos.y},
+                            BALL_RADIUS
+                    );
                 }
             }
 
             SDL_RenderPresent(renderer);
-            SDL_Delay(FRAME_DELAY_MS);
         }
+        SDL_Delay(FRAME_DELAY_MS);
     }
 
     SDL_FreeSurface(surface);
