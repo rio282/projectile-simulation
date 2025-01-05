@@ -20,6 +20,9 @@
 #define GRAVITY 9.81f
 #define BOUNCE 0.75f
 #define FLOOR_FRICTION 0.95f
+#define DISTANCE_SCALE_THRESHOLD 250.0f // distance at which scaling kicks in
+#define DISTANCE_SCALE_EXPONENT 1.25f // adjust this for more/less curvature
+
 
 struct m_State {
     struct SDL_Point m_pos;
@@ -169,8 +172,6 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
                             .y = (float) anchor_point.y
                     };
 
-                    int dx = mouse_state.m_pos.x - anchor_point.x;
-                    int dy = mouse_state.m_pos.y - anchor_point.y;
                     float magnitude = hypotenuse(
                             mouse_state.m_pos.x,
                             mouse_state.m_pos.y,
@@ -179,9 +180,17 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
                     );
 
                     if (magnitude > 0) {
-                        // Dear Clang-Tidy... do me a favour and SHUT UP
-                        ball.vel.x = (float) (-((float) dx / magnitude) * BALL_SPEED);
-                        ball.vel.y = (float) (-((float) dy / magnitude) * BALL_SPEED);
+                        float dx = (float) (mouse_state.m_pos.x - anchor_point.x);
+                        float dy = (float) (mouse_state.m_pos.y - anchor_point.y);
+                        ball.vel.x = -(dx / magnitude) * BALL_SPEED;
+                        ball.vel.y = -(dy / magnitude) * BALL_SPEED;
+
+                        float scale = 1.0f + powf(
+                                fmaxf(magnitude - DISTANCE_SCALE_THRESHOLD, 0) / 100.0f,
+                                DISTANCE_SCALE_EXPONENT
+                        );
+                        ball.vel.x *= scale;
+                        ball.vel.y *= scale;
                     }
 
                     shooting = true;
