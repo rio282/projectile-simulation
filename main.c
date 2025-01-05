@@ -19,7 +19,7 @@
 #define BALL_SPEED 10.0f
 #define GRAVITY 9.81f
 #define BOUNCE 0.75f
-#define FLOOR_FRICTION 0.5f
+#define FLOOR_FRICTION 0.95f
 
 struct m_State {
     struct SDL_Point m_pos;
@@ -251,6 +251,16 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
                 if (ball.pos.y < BALL_RADIUS || ball.pos.y > WIN_HEIGHT - BALL_RADIUS) {
                     ball.vel.y = -ball.vel.y * BOUNCE;
                     ball.pos.y = clamp(ball.pos.y, BALL_RADIUS, WIN_HEIGHT - BALL_RADIUS);
+
+                    // if ball is almost at rest vertically
+                    if (fabsf(ball.vel.y) < 1.0f) {
+                        ball.vel.x *= FLOOR_FRICTION;
+
+                        if (fabsf(ball.vel.x) < 0.0125f) {
+                            // stop ball completely if horizontal velocity is very small
+                            ball.vel.x = 0;
+                        }
+                    }
                 }
 
                 SetRenderColor(renderer, 0xFFFFFFFF);
