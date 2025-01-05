@@ -50,8 +50,8 @@ float hypotenuse(const int x1, const int y1, const int x2, const int y2) {
     return (float) sqrt(dx * dx + dy * dy);
 }
 
-float normalizeScalar(const float dst, const float max_dist) {
-    return fminf(dst / max_dist, 1.0f);
+float normalizeScalar(const float dst, const float max_dst) {
+    return fminf(dst / max_dst, 1.0f);
 }
 
 Uint32 ndstToGradientColor(const float normalized_dst) {
@@ -222,6 +222,7 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
 
     SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     SDL_Surface *surface = SDL_GetWindowSurface(window);
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
     bool paused = false;
 
@@ -321,16 +322,23 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
             }
 
             // draw balls
-            SetRenderColor(renderer, 0xFFFFFFFF);
             for (size_t i = 0; i < MAX_BALLS; ++i) {
                 Ball ball = balls[i];
-                if (ball.visible) {
-                    FillCircle(
-                            renderer,
-                            (SDL_Point) {.x = (int) ball.pos.x, .y = (int) ball.pos.y},
-                            BALL_RADIUS
-                    );
+                if (!ball.visible)continue;
+
+                Uint32 color = 0xFFFFFFFF;
+                if (ball.remaining_lifetime != BALL_IDLE_LIFETIME_MS) {
+                    const float alpha = 1.0f - normalizeScalar(BALL_IDLE_LIFETIME_MS - ball.remaining_lifetime,
+                                                               BALL_IDLE_LIFETIME_MS);
+                    color = (0xFF << 24) | (0xFF << 16) | (0xFF << 8) | (Uint8) (alpha * 255);
                 }
+
+                SetRenderColor(renderer, color);
+                FillCircle(
+                        renderer,
+                        (SDL_Point) {.x = (int) ball.pos.x, .y = (int) ball.pos.y},
+                        BALL_RADIUS
+                );
             }
 
             SDL_RenderPresent(renderer);
