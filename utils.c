@@ -6,8 +6,8 @@ float clamp(const float current, const float lower, const float upper) {
 }
 
 float hypotenuse(const int x1, const int y1, const int x2, const int y2) {
-    const int dx = x2 - x1;
-    const int dy = y2 - y1;
+    const float dx = (float) (x2 - x1);
+    const float dy = (float) (y2 - y1);
     return sqrtf(dx * dx + dy * dy);
 }
 

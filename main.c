@@ -9,9 +9,10 @@
 
 
 Ball balls[MAX_BALLS] = {0};
+
 SDL_Point anchor_point = {};
-bool m_down = false;
 SDL_Point mouse_pos = {};
+bool m_down = false;
 
 
 int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[]) {
@@ -74,8 +75,10 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
         }
 
         if (!paused) {
+            // --- UPDATE
             UpdateBalls(&balls);
 
+            // --- RENDER
             SDL_SetRenderDrawColor(renderer, 64, 63, 64, 255);
             SDL_RenderClear(renderer);
 

@@ -1,6 +1,7 @@
 #include "ball.h"
 #include "utils.h"
 #include "window.h"
+#include "world.h"
 #include <math.h>
 
 
@@ -31,13 +32,13 @@ void UpdateBalls(Ball (*balls)[MAX_BALLS]) {
 
         // boundary checking horizontal
         if (ball->pos.x < BALL_RADIUS || ball->pos.x > WIN_WIDTH - BALL_RADIUS) {
-            ball->vel.x = -ball->vel.x * BOUNCE;
+            ball->vel.x = -ball->vel.x * BALL_BOUNCE;
             ball->pos.x = clamp(ball->pos.x, BALL_RADIUS, WIN_WIDTH - BALL_RADIUS);
         }
 
         // boundary checking vertical
         if (ball->pos.y < BALL_RADIUS || ball->pos.y > WIN_HEIGHT - BALL_RADIUS) {
-            ball->vel.y = -ball->vel.y * BOUNCE;
+            ball->vel.y = -ball->vel.y * BALL_BOUNCE;
             ball->pos.y = clamp(ball->pos.y, BALL_RADIUS, WIN_HEIGHT - BALL_RADIUS);
 
             // if ball is almost at rest vertically
