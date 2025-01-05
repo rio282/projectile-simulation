@@ -40,13 +40,14 @@ typedef struct Ball {
     unsigned short remaining_lifetime;
 } Ball;
 
+
 float clamp(const float current, const float lower, const float upper) {
     return fmaxf(lower, fminf(current, upper));
 }
 
 float hypotenuse(const int x1, const int y1, const int x2, const int y2) {
-    int dx = x2 - x1;
-    int dy = y2 - y1;
+    const int dx = x2 - x1;
+    const int dy = y2 - y1;
     return (float) sqrt(dx * dx + dy * dy);
 }
 
@@ -55,12 +56,13 @@ float normalizeScalar(const float dst, const float max_dst) {
 }
 
 Uint32 ndstToGradientColor(const float normalized_dst) {
-    Uint8 r = (Uint8) (255 * normalized_dst);
-    Uint8 g = (Uint8) (255 * (1.0f - normalized_dst));
-    Uint8 b = 0;
-    Uint8 a = 255;
+    const Uint8 r = (Uint8) (255 * normalized_dst);
+    const Uint8 g = (Uint8) (255 * (1.0f - normalized_dst));
+    const Uint8 b = 0;
+    const Uint8 a = 255;
     return (r << 24) | (g << 16) | (b << 8) | a;
 }
+
 
 void SetRenderColor(SDL_Renderer *renderer, const Uint32 color) {
     Uint8 r = (color >> 24) & 0xFF;
@@ -71,23 +73,25 @@ void SetRenderColor(SDL_Renderer *renderer, const Uint32 color) {
     SDL_SetRenderDrawColor(renderer, r, g, b, a);
 }
 
-void FillCircle(SDL_Renderer *rend, const SDL_Point p, const int r) {
-    int r_sq = r * r;
+void FillCircle(SDL_Renderer *renderer, const SDL_Point p, const int r) {
+    const int r_sq = r * r;
+    int dst_sq;
+
     for (int x = p.x - r; x <= p.x + r; ++x) {
         for (int y = p.y - r; y <= p.y + r; ++y) {
-            int dst_sq = (x - p.x) * (x - p.x) + (y - p.y) * (y - p.y);
+            dst_sq = (x - p.x) * (x - p.x) + (y - p.y) * (y - p.y);
             if (dst_sq < r_sq) {
-                SDL_RenderDrawPoint(rend, x, y);
+                SDL_RenderDrawPoint(renderer, x, y);
             }
         }
     }
 }
 
 void DrawDottedCircleLine(SDL_Renderer *renderer, int x1, int y1, int x2, int y2, const int step, const int r) {
-    int dx = abs(x2 - x1);
-    int dy = abs(y2 - y1);
-    int sx = (x1 < x2) ? 1 : -1;
-    int sy = (y1 < y2) ? 1 : -1;
+    const int dx = abs(x2 - x1);
+    const int dy = abs(y2 - y1);
+    const int sx = (x1 < x2) ? 1 : -1;
+    const int sy = (y1 < y2) ? 1 : -1;
     int err = dx - dy;
 
     int s_count = 0;
@@ -192,14 +196,14 @@ void RenderBalls(SDL_Renderer *renderer, Ball (*balls)[MAX_BALLS]) {
     }
 }
 
-void RenderBallShooter(SDL_Renderer *renderer, const SDL_Point *m_pos, SDL_Point *anchor_point) {
-    float dst = hypotenuse(
+void RenderBallShooter(SDL_Renderer *renderer, const SDL_Point *m_pos, const SDL_Point *anchor_point) {
+    const float dst = hypotenuse(
             m_pos->x, m_pos->y,
             anchor_point->x, anchor_point->y
     );
-    float normalized_dst = normalizeScalar(dst, WIN_HEIGHT);
-    float smooth_dst = normalized_dst * normalized_dst;
-    Uint32 dst_indication_color = ndstToGradientColor(smooth_dst);
+    const float normalized_dst = normalizeScalar(dst, WIN_HEIGHT);
+    const float smooth_dst = normalized_dst * normalized_dst;
+    const Uint32 dst_indication_color = ndstToGradientColor(smooth_dst);
 
     SetRenderColor(renderer, dst_indication_color);
     DrawDottedCircleLine(
@@ -223,7 +227,7 @@ size_t getNextAvailableBallIndex(const Ball (*balls)[MAX_BALLS]) {
     return -1;
 }
 
-void shootBall(Ball *ball, const SDL_Point *m_pos, const SDL_Point *anchor_point) {
+void ShootBall(Ball *ball, const SDL_Point *m_pos, const SDL_Point *anchor_point) {
     ball->pos = (SDL_FPoint) {
             .x = (float) anchor_point->x,
             .y = (float) anchor_point->y
@@ -240,7 +244,7 @@ void shootBall(Ball *ball, const SDL_Point *m_pos, const SDL_Point *anchor_point
         ball->vel.x = -((float) (m_pos->x - anchor_point->x) / magnitude) * BALL_SPEED;
         ball->vel.y = -((float) (m_pos->y - anchor_point->y) / magnitude) * BALL_SPEED;
 
-        float powerScale = 1.0f + powf(
+        const float powerScale = 1.0f + powf(
                 fmaxf(magnitude - DISTANCE_SCALE_THRESHOLD, 0) / 100.0f,
                 DISTANCE_SCALE_EXPONENT
         );
@@ -251,6 +255,7 @@ void shootBall(Ball *ball, const SDL_Point *m_pos, const SDL_Point *anchor_point
         ball->visible = true;
     }
 }
+
 
 int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[]) {
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -277,6 +282,7 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
     SDL_Surface *surface = SDL_GetWindowSurface(window);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
+    bool running = true;
     bool paused = false;
 
     m_State mouse_state = {};
@@ -292,7 +298,7 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
     }
 
     SDL_Log("Init complete.\n");
-    bool running = true;
+
     while (running) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
@@ -314,7 +320,7 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
 
                     const size_t next_available = getNextAvailableBallIndex(&balls);
                     if (next_available != -1) {
-                        shootBall(&balls[next_available], &mouse_state.m_pos, &anchor_point);
+                        ShootBall(&balls[next_available], &mouse_state.m_pos, &anchor_point);
                     }
 
                     break;
@@ -353,8 +359,9 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
                 RenderBallShooter(renderer, &mouse_state.m_pos, &anchor_point);
             }
 
-            SDL_RenderPresent(renderer);
+            SDL_RenderPresent(renderer); // make the actual render call
         }
+
         SDL_Delay(FRAME_DELAY_MS);
     }
 
