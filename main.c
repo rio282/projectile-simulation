@@ -15,7 +15,7 @@
 #define FRAME_TIME_S (1.0f / TARGET_FPS)
 
 // world
-#define MAX_BALLS 10
+#define MAX_BALLS 16
 #define BALL_RADIUS 12
 #define BALL_SPEED 10.0f
 #define BALL_IDLE_LIFETIME_MS 3000
@@ -93,8 +93,8 @@ void DrawDottedCircleLine(SDL_Renderer *renderer, int x1, int y1, int x2, int y2
     int s_count = 0;
 
     while (true) {
-        // only draw if the s_count is a multiple of step
         if (s_count % step == 0) {
+            // only draw if the s_count is a multiple of step
             FillCircle(
                     renderer,
                     (SDL_Point) {.x = x1, .y = y1},
@@ -120,7 +120,7 @@ void DrawDottedCircleLine(SDL_Renderer *renderer, int x1, int y1, int x2, int y2
     }
 }
 
-void updateBalls(Ball (*balls)[MAX_BALLS]) {
+void UpdateBalls(Ball (*balls)[MAX_BALLS]) {
     for (size_t i = 0; i < MAX_BALLS; ++i) {
         Ball *ball = &(*balls)[i];
         if (!ball->visible) continue;
@@ -171,22 +171,74 @@ void updateBalls(Ball (*balls)[MAX_BALLS]) {
     }
 }
 
-void shootBall(Ball *ball, const m_State *mouse_state, const SDL_Point *anchor_point) {
+void RenderBalls(SDL_Renderer *renderer, Ball (*balls)[MAX_BALLS]) {
+    for (size_t i = 0; i < MAX_BALLS; ++i) {
+        Ball *ball = &(*balls)[i];
+        if (!ball->visible)continue;
+
+        Uint32 color = 0xFFFFFFFF;
+        if (ball->remaining_lifetime != BALL_IDLE_LIFETIME_MS) {
+            const float alpha = 1.0f - normalizeScalar(BALL_IDLE_LIFETIME_MS - ball->remaining_lifetime,
+                                                       BALL_IDLE_LIFETIME_MS);
+            color = (0xFF << 24) | (0xFF << 16) | (0xFF << 8) | (Uint8) (alpha * 255);
+        }
+
+        SetRenderColor(renderer, color);
+        FillCircle(
+                renderer,
+                (SDL_Point) {.x = (int) ball->pos.x, .y = (int) ball->pos.y},
+                BALL_RADIUS
+        );
+    }
+}
+
+void RenderBallShooter(SDL_Renderer *renderer, const SDL_Point *m_pos, SDL_Point *anchor_point) {
+    float dst = hypotenuse(
+            m_pos->x, m_pos->y,
+            anchor_point->x, anchor_point->y
+    );
+    float normalized_dst = normalizeScalar(dst, WIN_HEIGHT);
+    float smooth_dst = normalized_dst * normalized_dst;
+    Uint32 dst_indication_color = ndstToGradientColor(smooth_dst);
+
+    SetRenderColor(renderer, dst_indication_color);
+    DrawDottedCircleLine(
+            renderer,
+            m_pos->x,
+            m_pos->y,
+            anchor_point->x,
+            anchor_point->y,
+            BALL_RADIUS * 2,
+            BALL_RADIUS / 2
+    );
+
+    FillCircle(renderer, *anchor_point, BALL_RADIUS);
+
+    SetRenderColor(renderer, 0xFFFFFFFF);
+    FillCircle(renderer, *m_pos, BALL_RADIUS * 0.75);
+}
+
+size_t getNextAvailableBallIndex(const Ball (*balls)[MAX_BALLS]) {
+    for (size_t i = 0; i < MAX_BALLS; ++i) if (!(*balls)[i].visible) return i;
+    return -1;
+}
+
+void shootBall(Ball *ball, const SDL_Point *m_pos, const SDL_Point *anchor_point) {
     ball->pos = (SDL_FPoint) {
             .x = (float) anchor_point->x,
             .y = (float) anchor_point->y
     };
 
     float magnitude = hypotenuse(
-            mouse_state->m_pos.x,
-            mouse_state->m_pos.y,
+            m_pos->x,
+            m_pos->y,
             anchor_point->x,
             anchor_point->y
     );
 
     if (magnitude > 0) {
-        ball->vel.x = -((float) (mouse_state->m_pos.x - anchor_point->x) / magnitude) * BALL_SPEED;
-        ball->vel.y = -((float) (mouse_state->m_pos.y - anchor_point->y) / magnitude) * BALL_SPEED;
+        ball->vel.x = -((float) (m_pos->x - anchor_point->x) / magnitude) * BALL_SPEED;
+        ball->vel.y = -((float) (m_pos->y - anchor_point->y) / magnitude) * BALL_SPEED;
 
         float powerScale = 1.0f + powf(
                 fmaxf(magnitude - DISTANCE_SCALE_THRESHOLD, 0) / 100.0f,
@@ -198,11 +250,6 @@ void shootBall(Ball *ball, const m_State *mouse_state, const SDL_Point *anchor_p
         ball->idle = false;
         ball->visible = true;
     }
-}
-
-size_t getNextAvailableBallIndex(const Ball (*balls)[MAX_BALLS]) {
-    for (size_t i = 0; i < MAX_BALLS; ++i) if (!(*balls)[i].visible) return i;
-    return -1;
 }
 
 int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[]) {
@@ -267,7 +314,7 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
 
                     const size_t next_available = getNextAvailableBallIndex(&balls);
                     if (next_available != -1) {
-                        shootBall(&balls[next_available], &mouse_state, &anchor_point);
+                        shootBall(&balls[next_available], &mouse_state.m_pos, &anchor_point);
                     }
 
                     break;
@@ -294,57 +341,16 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
 
         if (!paused) {
             // --- UPDATE
-            updateBalls(&balls);
+            UpdateBalls(&balls);
 
             // --- DRAW
             SDL_SetRenderDrawColor(renderer, 64, 63, 64, 255);
             SDL_RenderClear(renderer);
 
-            // user wants to fire a new ball
-            if (mouse_state.m_down) {
-                float dst = hypotenuse(
-                        mouse_state.m_pos.x, mouse_state.m_pos.y,
-                        anchor_point.x, anchor_point.y
-                );
-                float normalized_dst = normalizeScalar(dst, WIN_HEIGHT);
-                float smooth_dst = normalized_dst * normalized_dst;
-                Uint32 dst_indication_color = ndstToGradientColor(smooth_dst);
-
-                SetRenderColor(renderer, dst_indication_color);
-                DrawDottedCircleLine(
-                        renderer,
-                        mouse_state.m_pos.x,
-                        mouse_state.m_pos.y,
-                        anchor_point.x,
-                        anchor_point.y,
-                        BALL_RADIUS * 2,
-                        BALL_RADIUS / 2
-                );
-
-                FillCircle(renderer, anchor_point, BALL_RADIUS);
-
-                SetRenderColor(renderer, 0xFFFFFFFF);
-                FillCircle(renderer, mouse_state.m_pos, BALL_RADIUS * 0.75);
-            }
-
-            // draw balls
-            for (size_t i = 0; i < MAX_BALLS; ++i) {
-                Ball ball = balls[i];
-                if (!ball.visible)continue;
-
-                Uint32 color = 0xFFFFFFFF;
-                if (ball.remaining_lifetime != BALL_IDLE_LIFETIME_MS) {
-                    const float alpha = 1.0f - normalizeScalar(BALL_IDLE_LIFETIME_MS - ball.remaining_lifetime,
-                                                               BALL_IDLE_LIFETIME_MS);
-                    color = (0xFF << 24) | (0xFF << 16) | (0xFF << 8) | (Uint8) (alpha * 255);
-                }
-
-                SetRenderColor(renderer, color);
-                FillCircle(
-                        renderer,
-                        (SDL_Point) {.x = (int) ball.pos.x, .y = (int) ball.pos.y},
-                        BALL_RADIUS
-                );
+            RenderBalls(renderer, &balls);
+            if (mouse_state.m_down && getNextAvailableBallIndex(&balls) != -1) {
+                // if mouse down and if there's a ball available
+                RenderBallShooter(renderer, &mouse_state.m_pos, &anchor_point);
             }
 
             SDL_RenderPresent(renderer);
