@@ -12,11 +12,14 @@
 #define WIN_HEIGHT 600
 #define TARGET_FPS 60
 #define FRAME_DELAY_MS (1000 / TARGET_FPS)
+#define FRAME_TIME_S (1.0f / TARGET_FPS)
 
 // world
 #define BALL_RADIUS 12
-#define BALL_SPEED 10.0
-
+#define BALL_SPEED 10.0f
+#define GRAVITY 9.81f
+#define BOUNCE 0.75f
+#define FLOOR_FRICTION 0.5f
 
 struct m_State {
     struct SDL_Point m_pos;
@@ -24,9 +27,13 @@ struct m_State {
 };
 
 struct Ball {
-    SDL_Point pos;
-    SDL_Point vel;
+    SDL_FPoint pos;
+    SDL_FPoint vel;
 };
+
+float clamp(const float current, const float lower, const float upper) {
+    return fmaxf(lower, fminf(current, upper));
+}
 
 float hypotenuse(int x1, int y1, int x2, int y2) {
     int dx = x2 - x1;
@@ -157,7 +164,10 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
                     if (paused) break;
 
                     mouse_state.m_down = false;
-                    ball.pos = anchor_point;
+                    ball.pos = (SDL_FPoint) {
+                            .x = (float) anchor_point.x,
+                            .y = (float) anchor_point.y
+                    };
 
                     int dx = mouse_state.m_pos.x - anchor_point.x;
                     int dy = mouse_state.m_pos.y - anchor_point.y;
@@ -170,8 +180,8 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
 
                     if (magnitude > 0) {
                         // Dear Clang-Tidy... do me a favour and SHUT UP
-                        ball.vel.x = (int) (-((float) dx / magnitude) * BALL_SPEED);
-                        ball.vel.y = (int) (-((float) dy / magnitude) * BALL_SPEED);
+                        ball.vel.x = (float) (-((float) dx / magnitude) * BALL_SPEED);
+                        ball.vel.y = (float) (-((float) dy / magnitude) * BALL_SPEED);
                     }
 
                     shooting = true;
@@ -228,19 +238,27 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
             }
 
             if (shooting) {
-                ball.pos.x += (int) ball.vel.x;
-                ball.pos.y += (int) ball.vel.y;
+                ball.vel.y += GRAVITY * FRAME_TIME_S;
+
+                ball.pos.x += ball.vel.x;
+                ball.pos.y += ball.vel.y;
 
                 // boundary checks
-                if (ball.pos.x <= 0 || ball.pos.x >= WIN_WIDTH) {
-                    ball.vel.x = -ball.vel.x;
+                if (ball.pos.x < BALL_RADIUS || ball.pos.x > WIN_WIDTH - BALL_RADIUS) {
+                    ball.vel.x = -ball.vel.x * BOUNCE;
+                    ball.pos.x = clamp(ball.pos.x, BALL_RADIUS, WIN_WIDTH - BALL_RADIUS);
                 }
-                if (ball.pos.y <= 0 || ball.pos.y >= WIN_HEIGHT) {
-                    ball.vel.y = -ball.vel.y;
+                if (ball.pos.y < BALL_RADIUS || ball.pos.y > WIN_HEIGHT - BALL_RADIUS) {
+                    ball.vel.y = -ball.vel.y * BOUNCE;
+                    ball.pos.y = clamp(ball.pos.y, BALL_RADIUS, WIN_HEIGHT - BALL_RADIUS);
                 }
 
                 SetRenderColor(renderer, 0xFFFFFFFF);
-                FillCircle(renderer, ball.pos, BALL_RADIUS);
+                FillCircle(
+                        renderer,
+                        (SDL_Point) {.x = (int) ball.pos.x, .y = (int) ball.pos.y},
+                        BALL_RADIUS
+                );
             }
 
             SDL_RenderPresent(renderer);
