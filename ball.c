@@ -3,6 +3,7 @@
 #include "window.h"
 #include <math.h>
 
+
 void UpdateBalls(Ball (*balls)[MAX_BALLS]) {
     for (size_t i = 0; i < MAX_BALLS; ++i) {
         Ball *ball = &(*balls)[i];
@@ -50,17 +51,19 @@ void UpdateBalls(Ball (*balls)[MAX_BALLS]) {
                 }
             }
         }
-
     }
 }
 
 void ShootBall(Ball *ball, const SDL_Point *m_pos, const SDL_Point *anchor_point) {
+    ball->idle = false;
+    ball->visible = true;
+
     ball->pos = (SDL_FPoint) {
             .x = (float) anchor_point->x,
             .y = (float) anchor_point->y
     };
 
-    float magnitude = hypotenuse(
+    const float magnitude = hypotenuse(
             m_pos->x,
             m_pos->y,
             anchor_point->x,
@@ -68,18 +71,13 @@ void ShootBall(Ball *ball, const SDL_Point *m_pos, const SDL_Point *anchor_point
     );
 
     if (magnitude > 0) {
-        ball->vel.x = -((float) (m_pos->x - anchor_point->x) / magnitude) * BALL_SPEED;
-        ball->vel.y = -((float) (m_pos->y - anchor_point->y) / magnitude) * BALL_SPEED;
-
         const float powerScale = 1.0f + powf(
                 fmaxf(magnitude - DISTANCE_SCALE_THRESHOLD, 0) / 100.0f,
                 DISTANCE_SCALE_EXPONENT
         );
-        ball->vel.x *= powerScale;
-        ball->vel.y *= powerScale;
 
-        ball->idle = false;
-        ball->visible = true;
+        ball->vel.x = (-((float) (m_pos->x - anchor_point->x) / magnitude) * BALL_SPEED) * powerScale;
+        ball->vel.y = (-((float) (m_pos->y - anchor_point->y) / magnitude) * BALL_SPEED) * powerScale;
     }
 }
 

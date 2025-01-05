@@ -48,8 +48,8 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
                 running = false;
             }
             if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
-                anchor_point = mouse_pos;
                 m_down = true;
+                anchor_point = mouse_pos;
             }
             if (event.type == SDL_MOUSEBUTTONUP && event.button.button == SDL_BUTTON_LEFT) {
                 m_down = false;
