@@ -24,15 +24,15 @@
 #define DISTANCE_SCALE_EXPONENT 1.25f // adjust this for more/less curvature
 
 
-struct m_State {
-    struct SDL_Point m_pos;
+typedef struct m_State {
+    SDL_Point m_pos;
     bool m_down;
-};
+} m_State;
 
-struct Ball {
+typedef struct Ball {
     SDL_FPoint pos;
     SDL_FPoint vel;
-};
+} Ball;
 
 float clamp(const float current, const float lower, const float upper) {
     return fmaxf(lower, fminf(current, upper));
@@ -140,9 +140,9 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
 
     bool paused = false;
 
-    struct m_State mouse_state = {};
+    m_State mouse_state = {};
     SDL_Point anchor_point = {};
-    struct Ball ball = {};
+    Ball ball = {};
     bool shooting = false;
 
     SDL_Log("Init complete.\n");
