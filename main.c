@@ -14,7 +14,8 @@
 #define FRAME_DELAY_MS (1000 / TARGET_FPS)
 
 // world
-#define BALL_RADIUS 8
+#define BALL_RADIUS 12
+#define BALL_SPEED 10.0
 
 
 struct m_State {
@@ -22,6 +23,10 @@ struct m_State {
     bool m_down;
 };
 
+struct Ball {
+    SDL_Point pos;
+    SDL_Point vel;
+};
 
 float hypotenuse(int x1, int y1, int x2, int y2) {
     int dx = x2 - x1;
@@ -123,8 +128,12 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
     SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     SDL_Surface *surface = SDL_GetWindowSurface(window);
 
+    bool paused = false;
+
     struct m_State mouse_state = {};
     SDL_Point anchor_point = {};
+    struct Ball ball = {};
+    bool shooting = false;
 
     SDL_Log("Init complete.\n");
     bool running = true;
@@ -137,16 +146,39 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
                     break;
 
                 case SDL_MOUSEBUTTONDOWN:
+                    if (paused) break;
                     mouse_state.m_down = true;
                     anchor_point.x = mouse_state.m_pos.x;
                     anchor_point.y = mouse_state.m_pos.y;
+                    shooting = false;
                     break;
 
                 case SDL_MOUSEBUTTONUP:
+                    if (paused) break;
+
                     mouse_state.m_down = false;
+                    ball.pos = anchor_point;
+
+                    int dx = mouse_state.m_pos.x - anchor_point.x;
+                    int dy = mouse_state.m_pos.y - anchor_point.y;
+                    float magnitude = hypotenuse(
+                            mouse_state.m_pos.x,
+                            mouse_state.m_pos.y,
+                            anchor_point.x,
+                            anchor_point.y
+                    );
+
+                    if (magnitude > 0) {
+                        // Dear Clang-Tidy... do me a favour and SHUT UP
+                        ball.vel.x = (int) (-((float) dx / magnitude) * BALL_SPEED);
+                        ball.vel.y = (int) (-((float) dy / magnitude) * BALL_SPEED);
+                    }
+
+                    shooting = true;
                     break;
 
                 case SDL_MOUSEMOTION:
+                    if (paused) break;
                     mouse_state.m_pos.x = event.motion.x;
                     mouse_state.m_pos.y = event.motion.y;
                     break;
@@ -156,43 +188,64 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
                         case SDL_SCANCODE_Q:
                             running = false;
                             break;
+                        case SDL_SCANCODE_SPACE:
+                            paused = !paused;
+                            break;
                         default:
                             break;
                     }
             }
         }
 
-        SDL_SetRenderDrawColor(renderer, 64, 63, 64, 255);
-        SDL_RenderClear(renderer);
+        if (!paused) {
+            SDL_SetRenderDrawColor(renderer, 64, 63, 64, 255);
+            SDL_RenderClear(renderer);
 
-        if (mouse_state.m_down) {
-            float dst = hypotenuse(
-                    mouse_state.m_pos.x, mouse_state.m_pos.y,
-                    anchor_point.x, anchor_point.y
-            );
-            float normalized_dst = normalizeScalar(dst, WIN_HEIGHT);
-            float smooth_dst = normalized_dst * normalized_dst;
-            Uint32 dst_indication_color = ndstToGradientColor(smooth_dst);
+            if (mouse_state.m_down) {
+                float dst = hypotenuse(
+                        mouse_state.m_pos.x, mouse_state.m_pos.y,
+                        anchor_point.x, anchor_point.y
+                );
+                float normalized_dst = normalizeScalar(dst, WIN_HEIGHT);
+                float smooth_dst = normalized_dst * normalized_dst;
+                Uint32 dst_indication_color = ndstToGradientColor(smooth_dst);
 
-            SetRenderColor(renderer, dst_indication_color);
-            DrawDottedCircleLine(
-                    renderer,
-                    mouse_state.m_pos.x,
-                    mouse_state.m_pos.y,
-                    anchor_point.x,
-                    anchor_point.y,
-                    BALL_RADIUS * 2,
-                    BALL_RADIUS / 2
-            );
+                SetRenderColor(renderer, dst_indication_color);
+                DrawDottedCircleLine(
+                        renderer,
+                        mouse_state.m_pos.x,
+                        mouse_state.m_pos.y,
+                        anchor_point.x,
+                        anchor_point.y,
+                        BALL_RADIUS * 2,
+                        BALL_RADIUS / 2
+                );
 
-            FillCircle(renderer, anchor_point, BALL_RADIUS);
+                FillCircle(renderer, anchor_point, BALL_RADIUS);
 
-            SetRenderColor(renderer, 0xFFFFFFFF);
-            FillCircle(renderer, mouse_state.m_pos, BALL_RADIUS);
+                SetRenderColor(renderer, 0xFFFFFFFF);
+                FillCircle(renderer, mouse_state.m_pos, BALL_RADIUS * 0.75);
+            }
+
+            if (shooting) {
+                ball.pos.x += (int) ball.vel.x;
+                ball.pos.y += (int) ball.vel.y;
+
+                // boundary checks
+                if (ball.pos.x <= 0 || ball.pos.x >= WIN_WIDTH) {
+                    ball.vel.x = -ball.vel.x;
+                }
+                if (ball.pos.y <= 0 || ball.pos.y >= WIN_HEIGHT) {
+                    ball.vel.y = -ball.vel.y;
+                }
+
+                SetRenderColor(renderer, 0xFFFFFFFF);
+                FillCircle(renderer, ball.pos, BALL_RADIUS);
+            }
+
+            SDL_RenderPresent(renderer);
+            SDL_Delay(FRAME_DELAY_MS);
         }
-
-        SDL_RenderPresent(renderer);
-        SDL_Delay(FRAME_DELAY_MS);
     }
 
     SDL_FreeSurface(surface);
