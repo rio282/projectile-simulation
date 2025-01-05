@@ -128,40 +128,46 @@ void updateBalls(Ball (*balls)[MAX_BALLS]) {
         // check if the ball is idle, if so: reduce its lifetime
         if (ball->idle) {
             ball->remaining_lifetime -= FRAME_DELAY_MS;
+
             if (ball->remaining_lifetime <= FRAME_DELAY_MS) {
                 // reset
                 ball->visible = false;
                 ball->idle = false;
                 ball->remaining_lifetime = BALL_IDLE_LIFETIME_MS;
-                continue;
             }
-        } else {
-            ball->vel.y += GRAVITY * FRAME_TIME_S; // account for timeskip
 
-            ball->pos.x += ball->vel.x;
-            ball->pos.y += ball->vel.y;
+            continue;
+        }
 
-            // boundary checks
-            if (ball->pos.x < BALL_RADIUS || ball->pos.x > WIN_WIDTH - BALL_RADIUS) {
-                ball->vel.x = -ball->vel.x * BOUNCE;
-                ball->pos.x = clamp(ball->pos.x, BALL_RADIUS, WIN_WIDTH - BALL_RADIUS);
-            }
-            if (ball->pos.y < BALL_RADIUS || ball->pos.y > WIN_HEIGHT - BALL_RADIUS) {
-                ball->vel.y = -ball->vel.y * BOUNCE;
-                ball->pos.y = clamp(ball->pos.y, BALL_RADIUS, WIN_HEIGHT - BALL_RADIUS);
+        // update the ball
+        ball->vel.y += GRAVITY * FRAME_TIME_S; // account for timeskip
 
-                // if ball is almost at rest vertically
-                if (fabsf(ball->vel.y) < 1.0f) {
-                    ball->vel.x *= FLOOR_FRICTION;
+        ball->pos.x += ball->vel.x;
+        ball->pos.y += ball->vel.y;
 
-                    if (fabsf(ball->vel.x) < 0.0125f) {
-                        // stop ball completely if horizontal velocity is very small
-                        ball->vel.x = 0;
-                        ball->idle = true;
-                    }
+        // boundary checking horizontal
+        if (ball->pos.x < BALL_RADIUS || ball->pos.x > WIN_WIDTH - BALL_RADIUS) {
+            ball->vel.x = -ball->vel.x * BOUNCE;
+            ball->pos.x = clamp(ball->pos.x, BALL_RADIUS, WIN_WIDTH - BALL_RADIUS);
+        }
+
+        // boundary checking vertical
+        if (ball->pos.y < BALL_RADIUS || ball->pos.y > WIN_HEIGHT - BALL_RADIUS) {
+            ball->vel.y = -ball->vel.y * BOUNCE;
+            ball->pos.y = clamp(ball->pos.y, BALL_RADIUS, WIN_HEIGHT - BALL_RADIUS);
+
+            // if ball is almost at rest vertically
+            if (fabsf(ball->vel.y) < 1.0f) {
+                ball->vel.x *= FLOOR_FRICTION;
+
+                if (fabsf(ball->vel.x) < 0.0125f) {
+                    // stop ball completely if horizontal velocity is very small
+                    ball->vel.x = 0;
+                    ball->idle = true;
                 }
             }
         }
+
     }
 }
 
