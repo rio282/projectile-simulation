@@ -10,27 +10,37 @@
 
 Ball balls[MAX_BALLS] = {0};
 SDL_Point anchor_point = {};
+bool m_down = false;
+SDL_Point mouse_pos = {};
 
 
 int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[]) {
-    SDL_Init(SDL_INIT_VIDEO);
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+        SDL_Log("SDL_Init Error: %s\n", SDL_GetError());
+        return EXIT_FAILURE;
+    }
+
     SDL_Window *window = SDL_CreateWindow(
             WIN_TITLE,
             SDL_WINDOWPOS_CENTERED,
             SDL_WINDOWPOS_CENTERED,
             WIN_WIDTH,
             WIN_HEIGHT,
-            0
+            SDL_WINDOW_BORDERLESS | SDL_WINDOW_INPUT_FOCUS
     );
+
+    if (!window) {
+        SDL_Log("Failed to create window: %s\n", SDL_GetError());
+        SDL_Quit();
+        return EXIT_FAILURE;
+    }
+
     SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
     bool running = true;
     bool paused = false;
     SDL_Event event;
-
-    bool m_down = false;
-    SDL_Point mouse_pos = {};
 
     while (running) {
         while (SDL_PollEvent(&event)) {
