@@ -34,6 +34,7 @@ typedef struct Ball {
     SDL_FPoint pos;
     SDL_FPoint vel;
     bool idle;
+    int remaining_lifetime;
 } Ball;
 
 float clamp(const float current, const float lower, const float upper) {
@@ -144,9 +145,8 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
 
     m_State mouse_state = {};
     SDL_Point anchor_point = {};
-    Ball ball = {};
+    Ball ball = {.remaining_lifetime = BALL_IDLE_LIFETIME_MS};
     bool shooting = false;
-    int despawn_timer = BALL_IDLE_LIFETIME_MS;
 
     SDL_Log("Init complete.\n");
     bool running = true;
@@ -285,11 +285,11 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
             }
 
             if (ball.idle) {
-                despawn_timer -= FRAME_DELAY_MS;
-                if (despawn_timer <= 0) {
+                ball.remaining_lifetime -= FRAME_DELAY_MS;
+                if (ball.remaining_lifetime <= 0) {
                     shooting = false;
                     ball.idle = false;
-                    despawn_timer = BALL_IDLE_LIFETIME_MS;
+                    ball.remaining_lifetime = BALL_IDLE_LIFETIME_MS;
                 }
             }
 
