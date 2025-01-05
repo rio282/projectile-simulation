@@ -17,10 +17,11 @@
 // world
 #define BALL_RADIUS 12
 #define BALL_SPEED 10.0f
+#define BALL_IDLE_LIFETIME_MS 3000
 #define GRAVITY 9.81f
 #define BOUNCE 0.75f
 #define FLOOR_FRICTION 0.95f
-#define DISTANCE_SCALE_THRESHOLD 250.0f // distance at which scaling kicks in
+#define DISTANCE_SCALE_THRESHOLD 200.0f // distance at which scaling kicks in
 #define DISTANCE_SCALE_EXPONENT 1.25f // adjust this for more/less curvature
 
 
@@ -32,6 +33,7 @@ typedef struct m_State {
 typedef struct Ball {
     SDL_FPoint pos;
     SDL_FPoint vel;
+    bool idle;
 } Ball;
 
 float clamp(const float current, const float lower, const float upper) {
@@ -144,6 +146,7 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
     SDL_Point anchor_point = {};
     Ball ball = {};
     bool shooting = false;
+    int despawn_timer = BALL_IDLE_LIFETIME_MS;
 
     SDL_Log("Init complete.\n");
     bool running = true;
@@ -268,6 +271,7 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
                         if (fabsf(ball.vel.x) < 0.0125f) {
                             // stop ball completely if horizontal velocity is very small
                             ball.vel.x = 0;
+                            ball.idle = true;
                         }
                     }
                 }
@@ -278,6 +282,15 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
                         (SDL_Point) {.x = (int) ball.pos.x, .y = (int) ball.pos.y},
                         BALL_RADIUS
                 );
+            }
+
+            if (ball.idle) {
+                despawn_timer -= FRAME_DELAY_MS;
+                if (despawn_timer <= 0) {
+                    shooting = false;
+                    ball.idle = false;
+                    despawn_timer = BALL_IDLE_LIFETIME_MS;
+                }
             }
 
             SDL_RenderPresent(renderer);
