@@ -32,8 +32,18 @@ void RenderBalls(SDL_Renderer *renderer, Ball (*balls)[MAX_BALLS]) {
         if (!ball->visible) continue;
 
         Uint32 color = 0xFFFFFFFF;
+        if (ball->remaining_lifetime != BALL_IDLE_LIFETIME_MS) {
+            const float alpha = 1.0f - normalizeScalar(BALL_IDLE_LIFETIME_MS - ball->remaining_lifetime,
+                                                       BALL_IDLE_LIFETIME_MS);
+            color = (0xFF << 24) | (0xFF << 16) | (0xFF << 8) | (Uint8) (alpha * 255);
+        }
+
         SetRenderColor(renderer, color);
-        FillCircle(renderer, (SDL_Point) {.x = (int) ball->pos.x, .y = (int) ball->pos.y}, BALL_RADIUS);
+        FillCircle(
+                renderer,
+                (SDL_Point) {.x = (int) ball->pos.x, .y = (int) ball->pos.y},
+                BALL_RADIUS
+        );
     }
 }
 

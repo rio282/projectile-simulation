@@ -58,6 +58,7 @@ void UpdateBalls(Ball (*balls)[MAX_BALLS]) {
 void ShootBall(Ball *ball, const SDL_Point *m_pos, const SDL_Point *anchor_point) {
     ball->idle = false;
     ball->visible = true;
+    ball->remaining_lifetime = BALL_IDLE_LIFETIME_MS;
 
     ball->pos = (SDL_FPoint) {
             .x = (float) anchor_point->x,
