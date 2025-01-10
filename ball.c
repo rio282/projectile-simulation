@@ -24,11 +24,21 @@ void UpdateBalls(Ball (*balls)[MAX_BALLS]) {
             continue;
         }
 
-        // update the ball
+        // update the ball position
         ball->vel.y += GRAVITY * FRAME_TIME_S; // account for timeskip
 
         ball->pos.x += ball->vel.x;
         ball->pos.y += ball->vel.y;
+
+        // collision check
+        for (size_t j = 0; j < MAX_BALLS; ++j) {
+            if (i == j) continue;
+
+            Ball *other = &(*balls)[j];
+            if (other->visible && !other->idle) {
+                HandleCollision(ball, other);
+            }
+        }
 
         // boundary checking horizontal
         if (ball->pos.x < BALL_RADIUS || ball->pos.x > WIN_WIDTH - BALL_RADIUS) {
@@ -80,6 +90,46 @@ void ShootBall(Ball *ball, const SDL_Point *m_pos, const SDL_Point *anchor_point
 
         ball->vel.x = (-((float) (m_pos->x - anchor_point->x) / magnitude) * BALL_SPEED) * powerScale;
         ball->vel.y = (-((float) (m_pos->y - anchor_point->y) / magnitude) * BALL_SPEED) * powerScale;
+    }
+}
+
+void HandleCollision(Ball *a, Ball *b) {
+    float dx = b->pos.x - a->pos.x;
+    float dy = b->pos.y - a->pos.y;
+    float distance = sqrtf(dx * dx + dy * dy);
+
+    // check if balls are colliding
+    if (distance < BALL_RADIUS * 2.0f) {  // or a.r + b.r
+        // normalize collision vector
+        float nx = dx / distance;
+        float ny = dy / distance;
+
+        // calculate relative velocity in direction of collision
+        float dvx = b->vel.x - a->vel.x;
+        float dvy = b->vel.y - a->vel.y;
+        float dotProduct = dvx * nx + dvy * ny;
+
+        // if the balls are moving apart -> no need for collision resolve
+        if (dotProduct > 0) {
+            return;
+        }
+
+        // calc impulse scalar with the coefficient of restitution
+        // float impulse = (2.0f * dotProduct) / (a->mass + b->mass);
+        float impulse = -(1 + BALL_BOUNCE) * dotProduct / 2.0f; // divided by 2 for equal mass assumption
+
+        // update velocities based on impulse
+        a->vel.x -= impulse * nx * 0.5f; // a->vel.x -= impulse * b->mass * nx;
+        a->vel.y -= impulse * ny * 0.5f;
+        b->vel.x += impulse * nx * 0.5f;
+        b->vel.y += impulse * ny * 0.5f;
+
+        // prevent sticking
+        float overlap = 0.5f * (BALL_RADIUS * 2.0f - distance);
+        a->pos.x -= overlap * nx;
+        a->pos.y -= overlap * ny;
+        b->pos.x += overlap * nx;
+        b->pos.y += overlap * ny;
     }
 }
 

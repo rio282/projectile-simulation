@@ -5,7 +5,7 @@
 #include <stdbool.h>
 
 #define MAX_BALLS 16
-#define BALL_RADIUS 12
+#define BALL_RADIUS 12 // default is 12
 #define BALL_SPEED 10.0f
 #define BALL_BOUNCE 0.75f
 #define BALL_IDLE_LIFETIME_MS 3000
@@ -23,6 +23,8 @@ typedef struct {
 void UpdateBalls(Ball (*balls)[MAX_BALLS]);
 
 void ShootBall(Ball *ball, const SDL_Point *m_pos, const SDL_Point *anchor_point);
+
+void HandleCollision(Ball *a, Ball *b);
 
 size_t getNextAvailableBallIndex(const Ball (*balls)[MAX_BALLS]);
 
