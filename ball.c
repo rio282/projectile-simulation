@@ -25,7 +25,7 @@ void UpdateBalls(Ball (*balls)[MAX_BALLS]) {
         }
 
         // update the ball position
-        ball->vel.y += GRAVITY * FRAME_TIME_S; // account for timeskip
+        ball->vel.y += SDL_STANDARD_GRAVITY * FRAME_TIME_S; // account for timeskip
 
         ball->pos.x += ball->vel.x;
         ball->pos.y += ball->vel.y;
